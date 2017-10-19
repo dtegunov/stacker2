@@ -37,6 +37,12 @@ namespace stacker
 
             Directory.CreateDirectory(FolderPath + "stacked");
 
+            Console.WriteLine("Delete original files after completion? (y/n)");
+            bool DeleteWhenDone = Console.ReadLine().ToLower().Contains("y");
+            Console.WriteLine($"Original files will {(DeleteWhenDone? "" : "not ")}be deleted.");
+            if (!DeleteWhenDone)
+                Directory.CreateDirectory(FolderPath + "original");
+
             #region Gain reference
 
             Console.WriteLine("Path to gain reference:");
@@ -285,7 +291,10 @@ namespace stacker
                             }
 
                             for (int n = 0; n < NFrames; n++)
-                                File.Delete(FrameNames[n].First(v => v.Contains(RootName)));
+                                if (DeleteWhenDone)
+                                    File.Delete(FrameNames[n].First(v => v.Contains(RootName)));
+                                else
+                                    File.Move(FrameNames[n].First(v => v.Contains(RootName)), FolderPath + "original/" + Helper.PathToNameWithExtension(FrameNames[n].First(v => v.Contains(RootName))));
 
                             StillWriting = true;
                         }
