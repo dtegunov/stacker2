@@ -1,5 +1,5 @@
 # In a nutshell
-Although FEI's EPU can write out whole gain-uncorrected movies now, the compression options are still limited to bit-stuffed 2 or 4 bit/px MRCs. This tool can be run in the background during acquisition, and will read newly acquired movies, save them as LZW-compressed TIFFs at the specified location, and (optionally) delete the originals.
+Although FEI's EPU can write out whole gain-uncorrected movies now, the compression options are still limited to bit-packed 2 or 4 bit/px MRCs. This tool can be run in the background during acquisition, and will read newly acquired movies, save them as LZW-compressed TIFFs at the specified location, and (optionally) delete the originals.
 
 
 ## You will need
@@ -20,7 +20,7 @@ Although FEI's EPU can write out whole gain-uncorrected movies now, the compress
 
 - **IMPORTANT #1**: If specified, the original MRC files will be deleted once the corresponding TIFF file has been saved successfully.
 - **IMPORTANT #2**: Compressing data acquired in integrating mode (e. g. Falcon II/III) won't provide significant gains and most likely isn't worth the overhead.
-- **IMPORTANT #3**: Reading bit-stuffed MRCs (i. e. 2 or 4 bit/px) isn't supported!
+- **IMPORTANT #3**: Reading bit-packed MRCs (i. e. 2 or 4 bit/px) isn't supported!
 
 
 ## Authorship
