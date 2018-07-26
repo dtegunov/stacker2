@@ -16,19 +16,6 @@ namespace stacker2
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Number of frames:");
-            string FramesString = Console.ReadLine();
-            int NFrames;
-            try
-            {
-                NFrames = int.Parse(FramesString);
-                Console.WriteLine("Using " + NFrames + " frames.\n");
-            }
-            catch (Exception)
-            {
-                return;
-            }
-
             Console.WriteLine("Path to stacks:");
             string FolderPath = Console.ReadLine();
             if (FolderPath[FolderPath.Length - 1] != '\\' || FolderPath[FolderPath.Length - 1] != '/')
@@ -47,9 +34,35 @@ namespace stacker2
                 OutputPath += "\\";
             Console.WriteLine("Writing compressed stacks to " + OutputPath + "\n");
 
-            Console.WriteLine("Compress to TIFF? (y/n)");
-            bool DoTiff = Console.ReadLine().ToLower().Contains("y");
-            Console.WriteLine($"Files will {(DoTiff ? "" : "not ")}be written as compressed TIFFs.\n");
+            Console.WriteLine("Compress to TIFF (c), or just move (m)? (c/m)");
+            bool Compress = Console.ReadLine().ToLower().Contains("c");
+            Console.WriteLine($"Files will be {(Compress ? "written as compressed TIFFs" : "just moved")}.\n");
+
+            string Extension = "mrc";
+            if (!Compress)
+            {
+                Console.WriteLine("What is the input file extension?");
+                Extension = Console.ReadLine().ToLower();
+                if (Extension[0] == '*')
+                    Extension = Extension.Substring(1);
+                if (Extension[0] == '.')
+                    Extension = Extension.Substring(1);
+
+                Console.WriteLine($"Using *.{Extension} as input file extension.\n");
+            }
+
+            Console.WriteLine("Number of frames:");
+            string FramesString = Console.ReadLine();
+            int NFrames;
+            try
+            {
+                NFrames = int.Parse(FramesString);
+                Console.WriteLine("Using " + NFrames + " frames.\n");
+            }
+            catch (Exception)
+            {
+                return;
+            }
 
             Console.WriteLine("Delete original files after completion? (y/n)");
             bool DeleteWhenDone = Console.ReadLine().ToLower().Contains("y");
@@ -68,11 +81,10 @@ namespace stacker2
             while (true)
             {
                 List<string> FrameNames = new List<string>();
-                List<string> CleanFrameNames = new List<string>();
                 List<string> GainRefNames = new List<string>();
-                
-                foreach (var filename in Directory.EnumerateFiles(FolderPath, "*.mrc",
-                                                                    DoRecursiveSearch ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
+
+                foreach (var filename in Directory.EnumerateFiles(FolderPath, "*." + Extension,
+                                                                  DoRecursiveSearch ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
                 {
                     try
                     {
@@ -92,7 +104,9 @@ namespace stacker2
                         else if (!filename.Contains("\\original\\"))
                             FrameNames.Add(filename);
                     }
-                    catch {}
+                    catch
+                    {
+                    }
                 }
 
                 int NFiles = FrameNames.Count;
@@ -113,64 +127,97 @@ namespace stacker2
                 {
                     string FrameName = FrameNames[f];
 
-                    MapHeader Header = MapHeader.ReadFromFilePatient(50, 100, FrameName, new int2(1), 0, typeof(byte));
+                    MapHeader Header = MapHeader.ReadFromFilePatient(500, 100, FrameName, new int2(1), 0, typeof(float));
 
-                    Image StackOut = new Image(Header.Dimensions);
-                    float[][] StackOutData = StackOut.GetHost(Intent.Read);
-                    
-                    for (int n = 0; n < NFrames; n++)
+                    if (Compress)
                     {
-                        Image Frame = Image.FromFilePatient(50, 100, FrameName, n);
+                        Image StackOut = new Image(Header.Dimensions);
+                        float[][] StackOutData = StackOut.GetHost(Intent.Read);
 
-                        float[] FrameData = Frame.GetHost(Intent.Read)[0];
-                        if (DoTiff)
-                            for (int i = 0; i < FrameData.Length; i++)
-                                StackOutData[n][i] = (float)Math.Max(0, Math.Min(255, Math.Round(FrameData[i])));
-                        else
-                            for (int i = 0; i < FrameData.Length; i++)
-                                StackOutData[n][i] = FrameData[i];
-                        Frame.Dispose();
+                        for (int n = 0; n < NFrames; n++)
+                        {
+                            Image Frame = Image.FromFilePatient(50, 100, FrameName, n);
 
-                        Console.Write(".");
+                            float[] FrameData = Frame.GetHost(Intent.Read)[0];
+                            if (Compress)
+                                for (int i = 0; i < FrameData.Length; i++)
+                                    StackOutData[n][i] = (float)Math.Max(0, Math.Min(255, Math.Round(FrameData[i])));
+                            else
+                                for (int i = 0; i < FrameData.Length; i++)
+                                    StackOutData[n][i] = FrameData[i];
+                            Frame.Dispose();
+
+                            Console.Write(".");
+                        }
+
+                        Console.WriteLine("");
+
+                        HaveBeenProcessed.Add(FrameName);
+
+                        string RootName = Helper.PathToName(FrameName);
+
+                        Thread WriteThread = new Thread(() =>
+                        {
+                            WritingSemaphore.Wait();
+
+                            try
+                            {
+                                //if (Compress)
+                                    StackOut.WriteTIFF(OutputPath + RootName + ".tif", 1, typeof(byte));
+                                //else
+                                //    StackOut.WriteMRC(OutputPath + RootName + ".mrc", 1, true);
+
+                                if (DeleteWhenDone)
+                                    File.Delete(FrameName);
+                                else
+                                    File.Move(FrameName, FolderPath + "original/" + Helper.PathToNameWithExtension(FrameName));
+                            }
+                            catch (Exception exc)
+                            {
+                                Console.WriteLine("ERROR: Could not write " + RootName);
+                                Console.WriteLine(exc);
+                                HaveBeenProcessed.Remove(FrameName);
+                            }
+
+                            WritingSemaphore.Release();
+                        });
+
+                        while (WritingSemaphore.CurrentCount < 1)
+                            Thread.Sleep(100);
+
+                        WriteThread.Start();
+
+                        Console.WriteLine("Done reading: " + RootName);
                     }
-                    Console.WriteLine("");
-
-                    HaveBeenProcessed.Add(FrameName);
-                    
-                    string RootName = Helper.PathToName(FrameName);
-
-                    Thread WriteThread = new Thread(() =>
+                    else
                     {
-                        WritingSemaphore.Wait();
+                        bool Success = false;
 
-                        try
+                        while (!Success)
                         {
-                            if (DoTiff)
-                                StackOut.WriteTIFF(OutputPath + RootName + ".tif", 1, typeof(byte));
-                            else
-                                StackOut.WriteMRC(OutputPath + RootName + ".mrc", 1, true);
+                            try
+                            {
+                                string NameOut = OutputPath + Helper.PathToNameWithExtension(FrameName);
 
-                            if (DeleteWhenDone)
-                                File.Delete(FrameName);
-                            else
-                                File.Move(FrameName, FolderPath + "original/" + Helper.PathToNameWithExtension(FrameName));
+                                if (DeleteWhenDone)
+                                    File.Move(FrameName, NameOut);
+                                else
+                                {
+                                    File.Copy(FrameName, NameOut);
+                                    File.Move(FrameName, FolderPath + "original/" + Helper.PathToNameWithExtension(FrameName));
+                                }
+
+                                HaveBeenProcessed.Add(FrameName);
+                                Success = true;
+
+                                Console.WriteLine("Done moving: " + Helper.PathToNameWithExtension(FrameName));
+                            }
+                            catch (Exception exc)
+                            {
+                                Console.WriteLine("Something went wrong moving " + Helper.PathToNameWithExtension(FrameName) + ":\n" + exc.ToString());
+                            }
                         }
-                        catch (Exception exc)
-                        {
-                            Console.WriteLine("ERROR: Could not write " + RootName);
-                            Console.WriteLine(exc);
-                            HaveBeenProcessed.Remove(FrameName);
-                        }
-
-                        WritingSemaphore.Release();
-                    });
-
-                    while (WritingSemaphore.CurrentCount < 1)
-                        Thread.Sleep(100);
-
-                    WriteThread.Start();
-
-                    Console.WriteLine("Done reading: " + RootName);
+                    }
                 }
 
                 if (DeleteExtraGain)
