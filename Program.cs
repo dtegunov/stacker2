@@ -76,6 +76,10 @@ namespace stacker2
             if (!DeleteWhenDone)
                 Directory.CreateDirectory(FolderPath + "original");
 
+            Console.WriteLine("Number of stacks to be processed in parallel (4 is a good value):");
+            int NParallel = int.Parse(Console.ReadLine());
+            Console.WriteLine($"{NParallel} stacks will be processed in parallel.\n");
+
             List<string> HaveBeenProcessed = new List<string>();
 
             while (true)
@@ -121,7 +125,7 @@ namespace stacker2
                 
                 Thread.Sleep(1000);
                 
-                SemaphoreSlim WritingSemaphore = new SemaphoreSlim(4);
+                SemaphoreSlim WritingSemaphore = new SemaphoreSlim(NParallel);
 
                 for (int f = 0; f < NFiles; f++)
                 {
@@ -158,7 +162,6 @@ namespace stacker2
 
                         Thread WriteThread = new Thread(() =>
                         {
-                            WritingSemaphore.Wait();
 
                             try
                             {
@@ -185,6 +188,7 @@ namespace stacker2
                         while (WritingSemaphore.CurrentCount < 1)
                             Thread.Sleep(100);
 
+                        WritingSemaphore.Wait();
                         WriteThread.Start();
 
                         Console.WriteLine("Done reading: " + RootName);
