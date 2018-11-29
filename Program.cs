@@ -80,6 +80,8 @@ namespace stacker2
             int NParallel = int.Parse(Console.ReadLine());
             Console.WriteLine($"{NParallel} stacks will be processed in parallel.\n");
 
+            GC.AddMemoryPressure(20 * ((long)1 << 30));
+
             List<string> HaveBeenProcessed = new List<string>();
 
             while (true)
@@ -162,13 +164,13 @@ namespace stacker2
 
                         Thread WriteThread = new Thread(() =>
                         {
-
                             try
                             {
                                 //if (Compress)
                                     StackOut.WriteTIFF(OutputPath + RootName + ".tif", 1, typeof(byte));
                                 //else
                                 //    StackOut.WriteMRC(OutputPath + RootName + ".mrc", 1, true);
+                                StackOut.Dispose();
 
                                 if (DeleteWhenDone)
                                     File.Delete(FrameName);
@@ -183,6 +185,7 @@ namespace stacker2
                             }
 
                             WritingSemaphore.Release();
+                            GC.Collect();
                         });
 
                         while (WritingSemaphore.CurrentCount < 1)

@@ -77,7 +77,8 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
-    <Reference Include="WarpLib">
+    <Reference Include="WarpLib, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>..\warp_net45\bin\WarpLib.dll</HintPath>
     </Reference>
   </ItemGroup>
